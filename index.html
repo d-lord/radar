@@ -14,55 +14,43 @@ Your browser does not support canvas.
 <script>
 "use strict";
 
-var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
+// global variables
 var c = document.getElementById("mainCanvas");
 var ctx = c.getContext("2d");
-var lastUpdate, delta; // time
+var scanLines = []; // all the line objects we're rendering
+var delta, lastUpdate; // time vars in milliseconds. time elapsed since last frame, and when that last frame was
 
 // configuration variables
 var lineCount = 360;
 
-var ScanLine = (function () {
-	function ScanLine(centre, speed, radius, color, angle) {
-		_classCallCheck(this, ScanLine);
+class ScanLine {
+    constructor(centreX, centreY, speed, radius, color, angle) {
+	this.centreX = centreX;
+	this.centreY = centreY;
+	this.speed = speed;
+	this.radius = radius;
+	this.color = color;
+	this.angle = angle;
+    }
 
-		this.centre = centre;
-		this.speed = speed;
-		this.radius = radius;
-		this.color = color;
-		this.angle = angle; // always starts vertical, I guess
-	}
+    update(delta) {
+	this.angle = (this.angle + delta * this.speed / 1000) % (Math.PI * 2);
+    }
 
-	_createClass(ScanLine, [{
-		key: "update",
-		value: function update() {
-			this.angle = (this.angle + delta * this.speed / 1000) % (Math.PI * 2);
-			//console.log("angle: "+ this.angle);
-		}
-	}, {
-		key: "draw",
-		value: function draw(canvas, context) {
-			// destination coords
-			var x = this.centre.x + Math.cos(this.angle) * this.radius;
-			var y = this.centre.y + Math.sin(this.angle) * this.radius;
+    draw(canvas, context) {
+	// destination coords
+	var x = this.centreX + Math.cos(this.angle) * this.radius;
+	var y = this.centreY + Math.sin(this.angle) * this.radius;
 
-			// draw
-			context.strokeStyle = this.color;
-			context.lineWidth = 3;
-			context.beginPath();
-			context.moveTo(this.centre.x, this.centre.y);
-			context.lineTo(x, y);
-			context.stroke();
-		}
-	}]);
-
-	return ScanLine;
-})();
-var scanLine;
-var shadowLines = [];
+	// draw
+	context.strokeStyle = this.color;
+	context.lineWidth = 3;
+	context.beginPath();
+	context.moveTo(this.centreX, this.centreY);
+	context.lineTo(x, y);
+	context.stroke();
+    }
+}
 
 // helper functions
 function makeGreenShade(i, max) {
@@ -70,7 +58,6 @@ function makeGreenShade(i, max) {
 	var g = 255 * (max - i) / max;
 	var b = 0;
 	var colour = "rgb(" + r + "," + g + "," + b + ")";
-	return getRandomColour();
 	return colour;
 }
 
@@ -78,9 +65,9 @@ function getRandomColour() {
 	return '#' + Math.floor(Math.random() * 16777215).toString(16);
 }
 
-// sets the delta and lastUpdate in milliseconds
-function tick() {
-	var now = Date.now();
+// sets the global 'delta' in milliseconds.
+// also sets 'lastUpdate' for itself
+function tick(now) {
 	if (!lastUpdate) {
 		// (|| !delta) but not if it was 0
 		// || undefined(delta) or whatever
@@ -95,50 +82,72 @@ function tick() {
 
 // change state variables
 function update() {
-    for (var i = shadowLines.length - 1; i >= 0; i--) {
-	    shadowLines[i].update();
+    for (var i = scanLines.length - 1; i >= 0; i--) {
+	    scanLines[i].update(delta);
     }
-    //scanLine.update();
 }
 
 // draw from state variables
 function draw() {
     ctx.clearRect(0, 0, c.width, c.height);
-    //scanLine.draw(c, ctx);
-    for (var i = 0; i < shadowLines.length; i++) {
-	    shadowLines[i].draw(c, ctx);
+    for (var i = 0; i < scanLines.length; i++) {
+	    scanLines[i].draw(c, ctx);
     }
 }
 
 function renderFrame(timestamp) {
-/* the main animation loop. see:
+/* the main animation loop. takes a DOMHighResTimestamp. see:
 http://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame
 */
-    tick();
+    tick(timestamp);
     update();
     draw();
-// must always schedule the next frame
+    // must always schedule the next frame
     window.requestAnimationFrame(renderFrame);
 }
 
-function initLines() {
-    // fill the canvas into the window
+    /*
+     * first load: update window parameters, initialise all lines with them
+     * resize: update window parameters, modify all lines with them
+
+   */
+function onWindowLoaded() {
+    /* Init the canvas and the lines within */
+    const [xMid, yMid] = updateWindowParameters();
+
+    // create 'lineCount' new lines
+    for (var i = 0; i < lineCount; i++) {
+	    scanLines.push(new ScanLine(xMid, yMid, 1, 1440,
+		    getRandomColour(),
+		    (360.0/lineCount)*i
+		));
+	}
+
+    renderFrame();
+};
+
+function onWindowUpdated() {
+    /* Re-init the canvas, and update the lines with the new centre point */
+    const [xMid, yMid] = updateWindowParameters();
+    for (const line of scanLines) {
+	line.centreX = xMid;
+	line.centreY = yMid;
+    }
+}
+
+function updateWindowParameters() {
+    /* Resize the canvas to fit the viewport and return its centre point */
     var viewportH = window.innerHeight;
     var viewportW = window.innerWidth;
     c.height = viewportH;
     c.width = viewportW;
     var xMid = c.width / 2;
     var yMid = c.height / 2;
+    return [xMid, yMid];
+}
 
-    //scanLine = new ScanLine({"x":xMid, "y":yMid}, 1, 1440, "#00FF00", 0.0); // TODO: derive radius
-    for (var i = 0; i < lineCount; i++) {
-	    shadowLines.push(new ScanLine({ "x": xMid, "y": yMid }, 1, 1440, makeGreenShade(i, lineCount), 0.0 - 0.05 * (i + 1)));
-	}
-    renderFrame();
-};
-
-window.onload = initLines;
-window.onresize = () => { shadowLines = []; initLines(); }
+window.onload = onWindowLoaded;
+window.onresize = onWindowUpdated;
 </script>
 
 </body>
