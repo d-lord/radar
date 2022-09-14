@@ -1,0 +1,13 @@
+/* these incantations make it full screen on everything,
+ * and should not be touched carelessly.
+ * it actually doesn't quite work on iOS because of the bottom toolbar that slides in and out there,
+ * but fiddling is likely to make it worse, not better
+ */
+html, body {
+    margin: 0;
+    padding: 0;
+}
+body {
+    background: black;
+    height: 100vh;
+}

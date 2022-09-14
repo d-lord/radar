@@ -1,0 +1,145 @@
+<!DOCTYPE html PUBLIC>
+<html xmlns:fb="http://ogp.me/ns/fb#">
+<head>
+<title>lord.geek: radar</title>
+<link rel="stylesheet" type="text/css" href="/radar/style.css">
+<meta property="og:title" content="Radar">
+<meta property="og:url" content="https://lord.geek.nz/radar">
+<meta property="og:image" content="https://lord.geek.nz/radar/thumbnail.png">
+</head>
+<body>
+<canvas id="mainCanvas">
+Your browser does not support canvas.
+</canvas>
+<script>
+"use strict";
+
+var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var c = document.getElementById("mainCanvas");
+var ctx = c.getContext("2d");
+var lastUpdate, delta; // time
+
+// configuration variables
+var lineCount = 360;
+
+var ScanLine = (function () {
+	function ScanLine(centre, speed, radius, color, angle) {
+		_classCallCheck(this, ScanLine);
+
+		this.centre = centre;
+		this.speed = speed;
+		this.radius = radius;
+		this.color = color;
+		this.angle = angle; // always starts vertical, I guess
+	}
+
+	_createClass(ScanLine, [{
+		key: "update",
+		value: function update() {
+			this.angle = (this.angle + delta * this.speed / 1000) % (Math.PI * 2);
+			//console.log("angle: "+ this.angle);
+		}
+	}, {
+		key: "draw",
+		value: function draw(canvas, context) {
+			// destination coords
+			var x = this.centre.x + Math.cos(this.angle) * this.radius;
+			var y = this.centre.y + Math.sin(this.angle) * this.radius;
+
+			// draw
+			context.strokeStyle = this.color;
+			context.lineWidth = 3;
+			context.beginPath();
+			context.moveTo(this.centre.x, this.centre.y);
+			context.lineTo(x, y);
+			context.stroke();
+		}
+	}]);
+
+	return ScanLine;
+})();
+var scanLine;
+var shadowLines = [];
+
+// helper functions
+function makeGreenShade(i, max) {
+	var r = 0;
+	var g = 255 * (max - i) / max;
+	var b = 0;
+	var colour = "rgb(" + r + "," + g + "," + b + ")";
+	return getRandomColour();
+	return colour;
+}
+
+function getRandomColour() {
+	return '#' + Math.floor(Math.random() * 16777215).toString(16);
+}
+
+// sets the delta and lastUpdate in milliseconds
+function tick() {
+	var now = Date.now();
+	if (!lastUpdate) {
+		// (|| !delta) but not if it was 0
+		// || undefined(delta) or whatever
+		// initialise
+		lastUpdate = now;
+		delta = 0;
+		return;
+	}
+	delta = now - lastUpdate; // am assuming it increases...
+	lastUpdate = now;
+}
+
+// change state variables
+function update() {
+    for (var i = shadowLines.length - 1; i >= 0; i--) {
+	    shadowLines[i].update();
+    }
+    //scanLine.update();
+}
+
+// draw from state variables
+function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    //scanLine.draw(c, ctx);
+    for (var i = 0; i < shadowLines.length; i++) {
+	    shadowLines[i].draw(c, ctx);
+    }
+}
+
+function renderFrame(timestamp) {
+/* the main animation loop. see:
+http://developer.mozilla.org/en-US/docs/Web/API/window/requestAnimationFrame
+*/
+    tick();
+    update();
+    draw();
+// must always schedule the next frame
+    window.requestAnimationFrame(renderFrame);
+}
+
+function initLines() {
+    // fill the canvas into the window
+    var viewportH = window.innerHeight;
+    var viewportW = window.innerWidth;
+    c.height = viewportH;
+    c.width = viewportW;
+    var xMid = c.width / 2;
+    var yMid = c.height / 2;
+
+    //scanLine = new ScanLine({"x":xMid, "y":yMid}, 1, 1440, "#00FF00", 0.0); // TODO: derive radius
+    for (var i = 0; i < lineCount; i++) {
+	    shadowLines.push(new ScanLine({ "x": xMid, "y": yMid }, 1, 1440, makeGreenShade(i, lineCount), 0.0 - 0.05 * (i + 1)));
+	}
+    renderFrame();
+};
+
+window.onload = initLines;
+window.onresize = () => { shadowLines = []; initLines(); }
+</script>
+
+</body>
+</html>
